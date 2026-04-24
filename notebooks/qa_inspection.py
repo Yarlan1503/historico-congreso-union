@@ -39,6 +39,7 @@ def _(DB_PATH, db_exists, pl, sqlite3):
 
     if db_exists:
         conn = sqlite3.connect(DB_PATH)
+        conn.execute("PRAGMA foreign_keys = ON")
 
         # 3b: Conteo de vote_events por cámara y fuente
         df_events_by_source = pl.read_database(
