@@ -1,0 +1,158 @@
+# xp_config.toml — Configuración experimental Fase 1
+# Validación empírica controlada del proyecto historico-congreso-union.
+# Consumida por scripts de captura y validación de Fase 1.
+# Formato: TOML 1.0
+
+# ---------------------------------------------------------------------------
+# 4. Fuentes permitidas en Fase 1 (whitelist explícita)
+# ---------------------------------------------------------------------------
+whitelist_source_tags = [
+    # Diputados
+    "dip_sitl",
+    "dip_infopal",
+    "dip_gaceta",
+    "dip_post",
+    # Senado LXVI
+    "senado_lxvi_html",
+    "senado_lxvi_ajax",
+    # Senado histórico
+    "senado_historico_lxii",
+    "senado_historico_lxiii",
+    "senado_historico_lxiv",
+    "senado_historico_lxv",
+    # Senado probes
+    "senado_probe_lx",
+    "senado_probe_lxi",
+]
+
+# ---------------------------------------------------------------------------
+# 5. Pool de User-Agent rotativos (realistas, no agresivos)
+# ---------------------------------------------------------------------------
+user_agent_pool = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+]
+
+# ---------------------------------------------------------------------------
+# 1. Máximo de repeticiones por nivel de riesgo de fuente
+# ---------------------------------------------------------------------------
+[max_repetitions]
+estable = 2
+riesgo_WAF = 3
+
+# ---------------------------------------------------------------------------
+# 2. Delay base y jitter por cámara (en milisegundos)
+# ---------------------------------------------------------------------------
+[delay.diputados]
+base_ms = 500
+jitter_ms = 300
+
+[delay.senado]
+base_ms = 800
+jitter_ms = 400
+
+# ---------------------------------------------------------------------------
+# 3. Backoff exponencial (en milisegundos)
+# ---------------------------------------------------------------------------
+[backoff]
+base_ms = 1000
+multiplier = 2.0
+max_ms = 16000
+
+# ---------------------------------------------------------------------------
+# 6. Timeouts por tipo de endpoint (en segundos)
+# ---------------------------------------------------------------------------
+[timeout_seconds]
+index = 15.0
+detail = 20.0
+ajax = 10.0
+download = 30.0
+
+# ---------------------------------------------------------------------------
+# 7. Patrones que activan indeterminación (WAF / cache / bloqueo)
+#    Cada entrada: source_tag → { body_substrings, header_values }
+# ---------------------------------------------------------------------------
+[indeterminate_triggers.dip_sitl]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.dip_infopal]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.dip_gaceta]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.dip_post]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_lxvi_html]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden", "X-Cache: HIT"]
+header_values = ["cf-ray", "X-Cache: HIT"]
+
+[indeterminate_triggers.senado_lxvi_ajax]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden", "X-Cache: HIT"]
+header_values = ["cf-ray", "X-Cache: HIT"]
+
+[indeterminate_triggers.senado_historico_lxii]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_historico_lxiii]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_historico_lxiv]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_historico_lxv]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_probe_lx]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+[indeterminate_triggers.senado_probe_lxi]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+
+# ---------------------------------------------------------------------------
+# 8. Umbrales de réplicas mínimas para éxito / fallo / indeterminado
+# ---------------------------------------------------------------------------
+[thresholds]
+# NOTA: run_p0.py calcula thresholds dinámicamente como max(1, repetitions - 1).
+# Los valores debajo son fallback global (mínimo 1) para runners que aún no
+# implementen lógica dinámica.
+status_success = 1          # fallback; dinámico = max(1, reps-1)
+hash_consensus = 1          # fallback; dinámico = max(1, reps-1)
+structure_ok = 1            # fallback; dinámico = max(1, reps-1)
+count_plausible = 1         # fallback; dinámico = max(1, reps-1)
+latency_max_ms = 30000      # latencia máxima aceptable antes de clasificar timeout/intermitente
+
+# ---------------------------------------------------------------------------
+# 9. Triggers de indeterminación selectivos por path (WAF selectivo)
+#    El analista descubrió que Incapsula en senado.gob.mx bloquea por path.
+# ---------------------------------------------------------------------------
+[indeterminate_triggers.senado_path_selective]
+# Bloquea rutas con legislatura específica (LX, LXIII, LXIV, LXV)
+blocked_path_patterns = [
+    "/informacion/votaciones/LX",
+    "/informacion/votaciones/LXIII",
+    "/informacion/votaciones/LXIV",
+    "/informacion/votaciones/LXV",
+]
+# Permite sin bloqueo (raíz y LXII)
+allowed_path_patterns = [
+    "/informacion/votaciones",
+    "/informacion/votaciones/LXII",
+]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden"]
+header_values = ["cf-ray"]
+action = "INDETERMINATE_IF_BLOCKED_PATH"

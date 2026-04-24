@@ -1,0 +1,23 @@
+{
+  "packet_id": "XP_DIP_GACETA_TABLA_LXVI_20251210",
+  "source_tag": "dip_gaceta",
+  "era": "LXVI",
+  "method": "GET",
+  "url": "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/66/tabla2or1-22.php3",
+  "url_pattern": null,
+  "parameters": {},
+  "repetitions": 3,
+  "expected_count": null,
+  "expected_schema": [
+    "metadata",
+    "group_sentido"
+  ],
+  "risks_covered": [
+    "grupo_x_sentido",
+    "tabla_agregada"
+  ],
+  "pending_manual_capture": false,
+  "pending_note": "Tabla agregada Gaceta ordi21 GET confirmada. Parser parse_tabla_agregada listo.",
+  "created_by": "ingeniero_f1",
+  "created_at": "2026-04-23"
+}

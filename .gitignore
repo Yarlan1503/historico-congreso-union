@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Entorno
+.venv/
+env/
+venv/
+
+# Herramientas Astral
+.ruff_cache/
+
+# Artefactos del runner P0 (generados)
+xraw/
+xmanifest/
+
+# Datos (preservar estructura)
+data/*
+!data/.gitkeep
+!data/raw/
+!data/logs/
+data/raw/*
+!data/raw/.gitkeep
+data/logs/*
+!data/logs/.gitkeep

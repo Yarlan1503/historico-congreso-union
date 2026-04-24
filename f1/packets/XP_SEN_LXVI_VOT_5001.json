@@ -1,0 +1,24 @@
+{
+  "packet_id": "XP_SEN_LXVI_VOT_5001",
+  "source_tag": "senado_lxvi_html",
+  "era": "LXVI",
+  "method": "GET",
+  "url": "https://www.senado.gob.mx/66/votacion/5001",
+  "url_pattern": null,
+  "parameters": {},
+  "repetitions": 3,
+  "expected_count": null,
+  "expected_schema": [
+    "metadata",
+    "counts",
+    "nominal"
+  ],
+  "risks_covered": [
+    "conteo_agregado",
+    "nominal"
+  ],
+  "pending_manual_capture": false,
+  "pending_note": "",
+  "created_by": "ingeniero_f1",
+  "created_at": "2026-04-23"
+}
