@@ -88,7 +88,8 @@ def normalize_sentido(raw: str, source_tag: str) -> str | None:
 # Conteos
 # ---------------------------------------------------------------------------
 
-_COUNT_KEYS = ("a_favor", "en_contra", "abstencion", "ausente", "novoto", "presente", "total")
+_SENTIDO_KEYS = ("a_favor", "en_contra", "abstencion", "ausente", "novoto", "presente")
+_COUNT_KEYS = _SENTIDO_KEYS + ("total",)
 
 
 def build_counts(parsed: dict[str, Any]) -> list[dict[str, Any]]:
@@ -98,7 +99,8 @@ def build_counts(parsed: dict[str, Any]) -> list[dict[str, Any]]:
     ``group_name``, ``a_favor``, ``en_contra``, ``abstencion``,
     ``ausente``, ``novoto``, ``presente``, ``total``.
 
-    Los sentidos faltantes defaultean a ``0``; ``total`` defaultea a ``None``.
+    Los sentidos faltantes defaultean a ``0``; ``total`` se calcula
+    dinámicamente como la suma de los sentidos.
     """
     counts_list: list[dict[str, Any]] = []
     group_sentido = parsed.get("group_sentido")
@@ -108,16 +110,18 @@ def build_counts(parsed: dict[str, Any]) -> list[dict[str, Any]]:
         for group_name, group_counts in group_sentido.items():
             entry: dict[str, Any] = {"group_name": group_name}
             if isinstance(group_counts, dict):
-                for k in _COUNT_KEYS:
-                    entry[k] = group_counts.get(k, 0 if k != "total" else None)
+                for k in _SENTIDO_KEYS:
+                    entry[k] = group_counts.get(k, 0)
             else:
-                for k in _COUNT_KEYS:
-                    entry[k] = 0 if k != "total" else None
+                for k in _SENTIDO_KEYS:
+                    entry[k] = 0
+            entry["total"] = sum(entry[k] for k in _SENTIDO_KEYS)
             counts_list.append(entry)
     elif isinstance(simple_counts, dict):
         entry = {"group_name": None}
-        for k in _COUNT_KEYS:
-            entry[k] = simple_counts.get(k, 0 if k != "total" else None)
+        for k in _SENTIDO_KEYS:
+            entry[k] = simple_counts.get(k, 0)
+        entry["total"] = sum(entry[k] for k in _SENTIDO_KEYS)
         counts_list.append(entry)
 
     return counts_list

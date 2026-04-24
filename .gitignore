@@ -28,3 +28,6 @@ data/raw/*
 !data/raw/.gitkeep
 data/logs/*
 !data/logs/.gitkeep
+
+# Notebooks
+notebooks/__marimo__/
