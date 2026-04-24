@@ -303,11 +303,14 @@ def parse_response(
     nominal = _extract_nominal_from_soup(soup, source_tag)
 
     # ------------------------------------------------------------------
-    # 5. Validación cruzada counts vs nominal
+    # 5. Validación cruzada counts vs nominal (condicional al contexto)
     # ------------------------------------------------------------------
-    validation = _validate_counts_vs_nominal(counts, nominal)  # type: ignore[arg-type]
-    if not validation["ok"]:
-        logger.warning("Counts vs nominal mismatch: %s", validation)
+    if nominal:
+        validation = _validate_counts_vs_nominal(counts, nominal)  # type: ignore[arg-type]
+        if not validation["ok"]:
+            logger.warning("Counts vs nominal mismatch: %s", validation)
+    else:
+        validation = {"ok": True, "expected": {}, "actual": {}, "diff": {}}
     meta: dict[str, str] = {
         "encoding": used_encoding,
         "validation_counts_vs_nominal": json.dumps(validation, ensure_ascii=False),

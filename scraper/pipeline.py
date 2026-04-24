@@ -207,10 +207,10 @@ def process(fetch_result: FetchResult, source_tag: str) -> ProcessResult:
             parsed_data=parsed,
         )
 
-    # Validación cruzada counts vs nominal (solo si ambos existen)
+    # Validación cruzada counts vs nominal (solo si ambos tienen datos)
     counts = parsed.get("counts")
     nominal = parsed.get("nominal")
-    if counts is not None and nominal is not None:
+    if counts and nominal:
         validation = validate_counts_vs_nominal(counts, nominal)
         if not validation.get("ok", True):
             logger.warning(

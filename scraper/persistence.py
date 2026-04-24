@@ -175,20 +175,27 @@ class ScraperPersistence:
             result["event_inserted"] = event_inserted
 
             # --- Link ---
-            link_dict = process_result.vote_event_asset or {
+            vote_event_asset = process_result.vote_event_asset or {}
+            link_dict = {
                 "vote_event_id": vote_event_id,
                 "asset_id": asset_id,
-                "asset_role": AssetRole.METADATA,
+                "asset_role": vote_event_asset.get("asset_role", AssetRole.METADATA),
             }
             insert_vote_event_asset(self._conn, link_dict)
 
             # --- Casts ---
             if process_result.casts:
+                for cast in process_result.casts:
+                    cast["vote_event_id"] = vote_event_id
+                    cast["asset_id"] = asset_id
                 casts_inserted = insert_raw_vote_casts(self._conn, process_result.casts)
                 result["casts_inserted"] = casts_inserted
 
             # --- Counts ---
             if process_result.counts:
+                for vc in process_result.counts:
+                    vc["vote_event_id"] = vote_event_id
+                    vc["asset_id"] = asset_id
                 counts_inserted = insert_vote_counts(self._conn, process_result.counts)
                 result["counts_inserted"] = counts_inserted
 
