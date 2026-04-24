@@ -11,7 +11,6 @@ y maneja encoding de forma explícita.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -23,7 +22,6 @@ from f1.parsers.xp_utils import (
     _decode_body,
     _detect_waf,
     _normalize_sentido,
-    _validate_counts_vs_nominal,
 )
 
 if TYPE_CHECKING:
@@ -67,19 +65,33 @@ def _extract_counts_from_soup(soup: BeautifulSoup) -> XPCounts | None:
     # Estrategia A: tablas con encabezados de conteo
     # ------------------------------------------------------------------
     for table in soup.find_all("table"):
-        headers: list[str] = []
-        first_row = table.find("tr")
-        if first_row is None:
+        rows = table.find_all("tr")
+        if len(rows) < 2:
             continue
-        for th in first_row.find_all(["th", "td"]):
+        header_row = rows[0]
+        headers: list[str] = []
+        for th in header_row.find_all(["th", "td"]):
             headers.append(th.get_text(strip=True))
 
-        # Si los encabezados parecen conteos, tomar la siguiente fila como valores
+        # Si los encabezados parecen conteos, buscar fila TOTAL o fallback a primera fila
         canonical_headers = [_normalize_count_key(h) for h in headers]
         if any(ch is not None for ch in canonical_headers):
-            data_row = first_row.find_next_sibling("tr")
-            if data_row is not None:
+            total_row = None
+            first_data_row = None
+            for data_row in rows[1:]:
+                if first_data_row is None:
+                    first_data_row = data_row
                 cells = data_row.find_all(["td", "th"])
+                if cells:
+                    first_cell_text = cells[0].get_text(strip=True)
+                    normalized = first_cell_text.lower().replace("ó", "o").strip()
+                    if normalized == "total":
+                        total_row = data_row
+                        break
+
+            target_row = total_row if total_row is not None else first_data_row
+            if target_row is not None:
+                cells = target_row.find_all(["td", "th"])
                 for idx, ch in enumerate(canonical_headers):
                     if ch is None or idx >= len(cells):
                         continue
@@ -302,18 +314,8 @@ def parse_response(
     # ------------------------------------------------------------------
     nominal = _extract_nominal_from_soup(soup, source_tag)
 
-    # ------------------------------------------------------------------
-    # 5. Validación cruzada counts vs nominal (condicional al contexto)
-    # ------------------------------------------------------------------
-    if nominal:
-        validation = _validate_counts_vs_nominal(counts, nominal)  # type: ignore[arg-type]
-        if not validation["ok"]:
-            logger.warning("Counts vs nominal mismatch: %s", validation)
-    else:
-        validation = {"ok": True, "expected": {}, "actual": {}, "diff": {}}
     meta: dict[str, str] = {
         "encoding": used_encoding,
-        "validation_counts_vs_nominal": json.dumps(validation, ensure_ascii=False),
     }
 
     return ParsedCounts(

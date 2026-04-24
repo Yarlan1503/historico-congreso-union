@@ -15,9 +15,7 @@ from scraper.pipeline import process
 
 logger = logging.getLogger(__name__)
 
-_INDEX_URL = (
-    "https://sitl.diputados.gob.mx/LXVI_leg/votacionesxperiodonplxvi.php?pert={periodo}"
-)
+_INDEX_URL = "https://sitl.diputados.gob.mx/LXVI_leg/votacionesxperiodonplxvi.php?pert={periodo}"
 _AGGREGATE_URL = (
     "https://sitl.diputados.gob.mx/LXVI_leg/estadistico_votacionnplxvi.php?votaciont={votacion_id}"
 )
@@ -190,8 +188,6 @@ def scrape_sitl_lxvi(
             _persist_process(persistence, agg_proc, stats)
             continue
 
-        _persist_process(persistence, agg_proc, stats)
-
         # Filtrado por fecha
         vote_date = None
         if agg_proc.vote_event:
@@ -208,6 +204,7 @@ def scrape_sitl_lxvi(
         stats["votaciones_procesadas"] += 1
 
         # 2b. Nominal por partido
+        nominal_procs: list = []
         for partidot in partidot_range:
             nom_url = _NOMINAL_URL.format(partidot=partidot, votacion_id=votacion_id)
             try:
@@ -254,6 +251,32 @@ def scrape_sitl_lxvi(
                 )
                 continue
 
+            nominal_procs.append(nom_proc)
+
+        # Validación cross-asset: agregado vs nominal unificado
+        if agg_proc.parsed_data and agg_proc.parsed_data.get("counts") and nominal_procs:
+            from shared.transform_bridge import validate_counts_vs_nominal
+
+            counts_dict = agg_proc.parsed_data["counts"]
+            all_nominal = [
+                {"sentido": cast["sentido"]} for proc in nominal_procs for cast in proc.casts
+            ]
+            if all_nominal:
+                validation = validate_counts_vs_nominal(counts_dict, all_nominal)
+                if not validation.get("ok", True):
+                    logger.warning(
+                        "Counts vs nominal mismatch en votación %s: %s", votacion_id, validation
+                    )
+                    stats["indeterminates"] += 1
+                    # Marcar votación completa como INDETERMINATE
+                    agg_proc.classification = "INDETERMINATE"
+                    agg_proc.parser_errors.append(f"Counts vs nominal mismatch: {validation}")
+                    # Descartar nominales
+                    nominal_procs = []
+
+        _persist_process(persistence, agg_proc, stats)
+
+        for nom_proc in nominal_procs:
             _persist_process(persistence, nom_proc, stats)
 
     return stats

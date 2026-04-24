@@ -207,10 +207,11 @@ def process(fetch_result: FetchResult, source_tag: str) -> ProcessResult:
             parsed_data=parsed,
         )
 
-    # Validación cruzada counts vs nominal (solo si ambos tienen datos)
+    # Validación cruzada counts vs nominal (solo si ambos tienen datos, y no para SITL/INFOPAL
+    # porque agregado y nominal están en assets separados)
     counts = parsed.get("counts")
     nominal = parsed.get("nominal")
-    if counts and nominal:
+    if counts and nominal and source_tag not in ("dip_sitl", "dip_infopal"):
         validation = validate_counts_vs_nominal(counts, nominal)
         if not validation.get("ok", True):
             logger.warning(
