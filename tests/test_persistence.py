@@ -17,14 +17,7 @@ def db_conn():
         """
         CREATE TABLE IF NOT EXISTS source_asset (
             asset_id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_tag             TEXT NOT NULL
-                                       CHECK(source_tag IN (
-                                           'dip_sitl',
-                                           'dip_gaceta_post',
-                                           'dip_gaceta_tabla',
-                                           'sen_lxvi_ajax',
-                                           'sen_lxvi_html'
-                                       )),
+            source_tag             TEXT NOT NULL,  -- Sin CHECK: acepta cualquier string
             url                    TEXT NOT NULL,
             method                 TEXT NOT NULL DEFAULT 'GET'
                                        CHECK(method IN ('GET', 'POST')),

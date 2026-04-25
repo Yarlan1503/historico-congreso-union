@@ -11,12 +11,17 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 # ---------------------------------------------------------------------------
-# Enums
+# Constantes de fuente
 # ---------------------------------------------------------------------------
-class SourceTag(str, Enum):
-    """Origen del asset crudo."""
+class SourceTag:
+    """Origen del asset crudo. Valores canónicos como constantes de clase.
+
+    Cualquier string es válido como source_tag (sin enum cerrado).
+    Las constantes se mantienen para backward compatibility y legibilidad.
+    """
 
     DIP_SITL = "dip_sitl"
+    DIP_INFOPAL = "dip_infopal"
     DIP_GACETA_POST = "dip_gaceta_post"
     DIP_GACETA_TABLA = "dip_gaceta_tabla"
     SEN_LXVI_AJAX = "sen_lxvi_ajax"
@@ -76,7 +81,7 @@ class SourceAsset(BaseModel):
     """Representa un asset crudo descargado de una fuente legislativa."""
 
     asset_id: int | None = None
-    source_tag: SourceTag
+    source_tag: str  # Era SourceTag enum; ahora acepta cualquier string
     url: HttpUrl
     method: Method = Method.GET
     request_payload_hash: str | None = None
@@ -277,9 +282,9 @@ if __name__ == "__main__":
         (
             SourceAsset,
             {
-                "source_tag": "no_existe",
-                "url": "https://example.com",
-                "response_body_hash": "zzz",
+                "source_tag": "no_existe",  # string válido para source_tag (ya no es enum)
+                "url": "not-a-url",  # <- este SÍ debe fallar: URL inválida
+                "response_body_hash": "a1b2c3d4",
                 "captured_at": datetime.now(UTC),
                 "raw_body_path": "xraw/test",
             },
@@ -288,8 +293,8 @@ if __name__ == "__main__":
             SourceAsset,
             {
                 "source_tag": SourceTag.SEN_LXVI_AJAX,
-                "url": "not-a-url",
-                "response_body_hash": "a1b2c3d4",
+                "url": "https://example.com",
+                "response_body_hash": "g1h2i3j4",  # 'g' e 'i' no son hex
                 "captured_at": datetime.now(UTC),
                 "raw_body_path": "xraw/test",
             },
@@ -299,8 +304,8 @@ if __name__ == "__main__":
             {
                 "source_tag": SourceTag.DIP_GACETA_POST,
                 "url": "https://example.com",
-                "response_body_hash": "g1h2i3j4",  # 'g' e 'i' no son hex
-                "captured_at": datetime.now(UTC),
+                "response_body_hash": "short",  # menos de 8 caracteres
+                "captured_at": datetime(2024, 1, 1),  # naive datetime
                 "raw_body_path": "xraw/test",
             },
         ),
@@ -342,9 +347,12 @@ if __name__ == "__main__":
                 print(f"   · [{loc}] {err['msg']}")
 
     print("\n" + "=" * 60)
-    print("Verificación de enum values...")
+    print("Verificación de constantes y enum values...")
     print("=" * 60)
-    for e in (SourceTag, Chamber, Legislature, AssetRole, Method, Sentido):
+    # SourceTag ya no es Enum — mostrar constantes de clase
+    st_attrs = {k: v for k, v in vars(SourceTag).items() if k.isupper()}
+    print(f"SourceTag (constantes): {st_attrs}")
+    for e in (Chamber, Legislature, AssetRole, Method, Sentido):
         print(f"{e.__name__}: {[m.value for m in e]}")
 
     print("\n" + "=" * 60)

@@ -123,12 +123,12 @@ def get_parsed_for_attempt(manifest: dict, attempt_num: int) -> dict | None:
 # ---------------------------------------------------------------------------
 # Mapeos de inferencia
 # ---------------------------------------------------------------------------
-def infer_legislature(_source_tag: SourceTag) -> Legislature:
+def infer_legislature(_source_tag: str) -> Legislature:
     """Todos los packets actuales de F1 son LXVI."""
     return Legislature.LXVI
 
 
-def infer_asset_role(source_tag: SourceTag, parsed: dict | None) -> AssetRole:
+def infer_asset_role(source_tag: str, parsed: dict | None) -> AssetRole:
     """Infier el rol del asset en función del tipo de fuente y datos disponibles."""
     nominal = parsed.get("nominal") if parsed else None
     group_sentido = parsed.get("group_sentido") if parsed else None
@@ -171,7 +171,7 @@ def extract_asset_from_manifest(
 ) -> SourceAsset:
     """Construye un ``SourceAsset`` a partir del manifest y archivos xraw."""
     packet_id = manifest["packet_id"]
-    source_tag = SourceTag(map_source_tag(manifest["source_tag"], packet_id))
+    source_tag = map_source_tag(manifest["source_tag"], packet_id)
 
     attempt_dir = raw_dir / packet_id / f"attempt_{attempt_num}"
     meta_path = attempt_dir / "meta.json"
@@ -235,10 +235,10 @@ def extract_asset_from_manifest(
 def extract_vote_event(
     manifest: dict,
     asset_url: str,
-    source_tag: SourceTag,
+    source_tag: str,
 ) -> RawVoteEvent:
     """Construye un ``RawVoteEvent`` a partir del manifest."""
-    chamber = infer_chamber(source_tag.value)
+    chamber = infer_chamber(source_tag)
     legislature = infer_legislature(source_tag)
 
     consensus = get_consensus_attempt(manifest)
@@ -286,7 +286,7 @@ def extract_casts(
     manifest: dict,
     vote_event_id: int,
     asset_id: int,
-    source_tag: SourceTag,
+    source_tag: str,
 ) -> list[RawVoteCast]:
     """Extrae la lista de ``RawVoteCast`` del attempt consensuado."""
     casts: list[RawVoteCast] = []
@@ -321,7 +321,7 @@ def extract_casts(
         if group:
             group = _fix_mojibake_name(group)
 
-        sentido_str = normalize_sentido(sentido_raw, source_tag.value)
+        sentido_str = normalize_sentido(sentido_raw, source_tag)
         if sentido_str is None:
             continue
         try:
@@ -423,7 +423,7 @@ def ingest_manifest(
         report.errors.append(f"{packet_id}: error extrayendo asset: {exc}")
         return
 
-    source_tag = SourceTag(map_source_tag(manifest["source_tag"], packet_id))
+    source_tag = map_source_tag(manifest["source_tag"], packet_id)
 
     # ------------------------------------------------------------------
     # Vote event extraction (before transaction)
