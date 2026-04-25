@@ -15,6 +15,7 @@ from typing import Any
 from f2.db_init import init_db
 from scraper.dry_run import DryRunPersistence
 from scraper.engine import HTTPScraperEngine
+from scraper.exporter.snapshot import export_snapshot
 from scraper.persistence import ScraperPersistence
 from scraper.sources.gaceta import scrape_gaceta
 from scraper.sources.gaceta_lxvi import scrape_gaceta_lxvi
@@ -135,6 +136,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Rango de IDs Senado (ej. 1-5000)",
     )
+    parser.add_argument(
+        "--camara",
+        type=str,
+        default=None,
+        choices=["D", "S"],
+        help="Cámara para exportar (D=Diputados, S=Senado). Solo para --export.",
+    )
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="Modo export: produce snapshot para popolo-congreso-union en vez de scraping",
+    )
 
     args = parser.parse_args(argv)
 
@@ -159,6 +172,30 @@ def main(argv: list[str] | None = None) -> int:
         level=getattr(logging, args.log_level.upper()),
         handlers=[stream_handler, file_handler],
     )
+
+    # ------------------------------------------------------------------
+    # 0. Modo export
+    # ------------------------------------------------------------------
+    if args.export:
+        if args.camara is None:
+            parser.error("--camara es requerido con --export")
+        camara = args.camara
+        legislature = args.legislature
+        chamber_source = "diputados" if camara == "D" else "senado"
+
+        snapshots_base = PROJECT_ROOT / "snapshots"
+        raw_dir = args.raw_dir
+
+        logger.info("Iniciando export: camara=%s legislature=%s", camara, legislature)
+        result = export_snapshot(
+            db_path=args.db_path,
+            raw_dir=raw_dir,
+            output_base=snapshots_base,
+            chamber_source=chamber_source,
+            legislature=legislature,
+        )
+        logger.info("Export completado: %s", json.dumps(result, indent=2, default=str))
+        return 0
 
     # ------------------------------------------------------------------
     # 1. Inicializar DB si no existe
