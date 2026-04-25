@@ -1,0 +1,144 @@
+# config.toml — Configuración productiva del pipeline historico-congreso-union
+# Formato: TOML 1.0
+#
+# Consumida por scraper/engine.py y scraper/cli.py.
+# La config legacy f1/config/xp_config.toml se mantiene para scripts F1.
+
+# ---------------------------------------------------------------------------
+# Pool de User-Agent (engine usa built-in pool si está vacío)
+# ---------------------------------------------------------------------------
+# user_agent_pool = []  # Dejar vacío para usar pool built-in de engine (12+ UAs)
+
+# ---------------------------------------------------------------------------
+# Delay base y jitter por cámara (en milisegundos)
+# ---------------------------------------------------------------------------
+[delay.diputados]
+base_ms = 500
+jitter_ms = 300
+
+[delay.senado]
+base_ms = 800
+jitter_ms = 400
+
+# ---------------------------------------------------------------------------
+# Backoff exponencial (en milisegundos)
+# ---------------------------------------------------------------------------
+[backoff]
+base_ms = 1000
+multiplier = 2.0
+max_ms = 16000
+
+# ---------------------------------------------------------------------------
+# Timeouts por tipo de endpoint (en segundos)
+# ---------------------------------------------------------------------------
+[timeout_seconds]
+index = 15.0
+detail = 20.0
+ajax = 10.0
+download = 30.0
+
+# ---------------------------------------------------------------------------
+# Legislaturas soportadas — URLs base por cámara
+# ---------------------------------------------------------------------------
+[legislatures.LXVI]
+leg_number = 66
+description = "LXVI Legislatura (2024-2027)"
+[legislatures.LXVI.urls.diputados]
+sitl_index = "https://sitl.diputados.gob.mx/LXVI_leg/votacionesxperiodonplxvi.php?pert={periodo}"
+sitl_aggregate = "https://sitl.diputados.gob.mx/LXVI_leg/estadistico_votacionnplxvi.php?votaciont={votacion_id}"
+sitl_nominal = "https://sitl.diputados.gob.mx/LXVI_leg/listados_votacionesnplxvi.php?partidot={partidot}&votaciont={votacion_id}"
+gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/66/"
+[legislatures.LXVI.urls.senado]
+base = "https://www.senado.gob.mx"
+ajax = "https://www.senado.gob.mx/66/app/votaciones/functions/viewTableVot.php?action=ajax&cell=1&order=DESC&votacion={votacion_id}&q="
+html = "https://www.senado.gob.mx/66/votacion/{votacion_id}"
+[legislatures.LXVI.periods]
+diputados_sitl = [1, 3, 5, 6, 8]
+
+[legislatures.LXV]
+leg_number = 65
+description = "LXV Legislatura (2021-2024)"
+[legislatures.LXV.urls.diputados]
+sitl_index = "https://sitl.diputados.gob.mx/LXV_leg/votacionesxperiodonplxv.php?pert={periodo}"
+sitl_aggregate = "https://sitl.diputados.gob.mx/LXV_leg/estadistico_votacionnplxv.php?votaciont={votacion_id}"
+sitl_nominal = "https://sitl.diputados.gob.mx/LXV_leg/listados_votacionesnplxv.php?partidot={partidot}&votaciont={votacion_id}"
+gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/65/"
+[legislatures.LXV.urls.senado]
+base = "https://www.senado.gob.mx"
+ajax = "https://www.senado.gob.mx/65/app/votaciones/functions/viewTableVot.php?action=ajax&cell=1&order=DESC&votacion={votacion_id}&q="
+html = "https://www.senado.gob.mx/65/votacion/{votacion_id}"
+[legislatures.LXV.periods]
+diputados_sitl = [1, 3, 5]
+
+[legislatures.LXIV]
+leg_number = 64
+description = "LXIV Legislatura (2018-2021)"
+[legislatures.LXIV.urls.diputados]
+sitl_index = "https://sitl.diputados.gob.mx/LXIV_leg/votacionesxperiodonplxiv.php?pert={periodo}"
+sitl_aggregate = "https://sitl.diputados.gob.mx/LXIV_leg/estadistico_votacionnplxiv.php?votaciont={votacion_id}"
+sitl_nominal = "https://sitl.diputados.gob.mx/LXIV_leg/listados_votacionesnplxiv.php?partidot={partidot}&votaciont={votacion_id}"
+gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/64/"
+[legislatures.LXIV.urls.senado]
+base = "https://www.senado.gob.mx"
+ajax = "https://www.senado.gob.mx/64/app/votaciones/functions/viewTableVot.php?action=ajax&cell=1&order=DESC&votacion={votacion_id}&q="
+html = "https://www.senado.gob.mx/64/votacion/{votacion_id}"
+[legislatures.LXIV.periods]
+diputados_sitl = [1, 3, 5]
+
+[legislatures.LXIII]
+leg_number = 63
+description = "LXIII Legislatura (2015-2018)"
+[legislatures.LXIII.urls.diputados]
+sitl_index = "https://sitl.diputados.gob.mx/LXIII_leg/votacionesxperiodonplxiii.php?pert={periodo}"
+sitl_aggregate = "https://sitl.diputados.gob.mx/LXIII_leg/estadistico_votacionnplxiii.php?votaciont={votacion_id}"
+sitl_nominal = "https://sitl.diputados.gob.mx/LXIII_leg/listados_votacionesnplxiii.php?partidot={partidot}&votaciont={votacion_id}"
+gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/63/"
+[legislatures.LXIII.urls.senado]
+base = "https://www.senado.gob.mx"
+historico = "https://www.senado.gob.mx/informacion/votaciones/LXIII"
+[legislatures.LXIII.periods]
+diputados_sitl = [1, 3, 5]
+
+[legislatures.LXII]
+leg_number = 62
+description = "LXII Legislatura (2012-2015)"
+[legislatures.LXII.urls.diputados]
+sitl_index = "https://sitl.diputados.gob.mx/LXII_leg/votacionesxperiodonplxii.php?pert={periodo}"
+sitl_aggregate = "https://sitl.diputados.gob.mx/LXII_leg/estadistico_votacionnplxii.php?votaciont={votacion_id}"
+sitl_nominal = "https://sitl.diputados.gob.mx/LXII_leg/listados_votacionesnplxii.php?partidot={partidot}&votaciont={votacion_id}"
+gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/62/"
+[legislatures.LXII.urls.senado]
+base = "https://www.senado.gob.mx"
+historico = "https://www.senado.gob.mx/informacion/votaciones/LXII"
+[legislatures.LXII.periods]
+diputados_sitl = [1, 3, 5]
+
+# ---------------------------------------------------------------------------
+# WAF / indeterminación — triggers por patrón (no por tag individual)
+# ---------------------------------------------------------------------------
+[waf_patterns]
+body_substrings = ["Incapsula", "Access Denied", "403 Forbidden", "Attention Required"]
+header_values = ["cf-ray"]
+blocking_status_codes = [403, 502, 503, 429]
+
+# WAF selectivo por path (Senado bloquea ciertas legislaturas)
+[waf_patterns.path_blocking]
+blocked_patterns = [
+    "/informacion/votaciones/LX",
+    "/informacion/votaciones/LXIII",
+    "/informacion/votaciones/LXIV",
+    "/informacion/votaciones/LXV",
+]
+allowed_patterns = [
+    "/informacion/votaciones",
+    "/informacion/votaciones/LXII",
+]
+
+# ---------------------------------------------------------------------------
+# Umbrales de réplicas
+# ---------------------------------------------------------------------------
+[thresholds]
+status_success = 1
+hash_consensus = 1
+structure_ok = 1
+latency_max_ms = 30000
