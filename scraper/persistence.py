@@ -15,14 +15,11 @@ from typing import Any
 
 from f2.models import (
     AssetRole,
-    Chamber,
-    Legislature,
     Method,
     RawVoteCast,
     RawVoteEvent,
     Sentido,
     SourceAsset,
-    SourceTag,
     VoteCounts,
     VoteEventAsset,
 )
@@ -113,7 +110,7 @@ class ScraperPersistence:
     # ------------------------------------------------------------------
     # Persistencia principal (SQLite)
     # ------------------------------------------------------------------
-    def persist(self, process_result: ProcessResult, source_tag: SourceTag) -> dict[str, Any]:
+    def persist(self, process_result: ProcessResult, source_tag: str) -> dict[str, Any]:
         """Persiste un ``ProcessResult`` en la base de datos.
 
         Para clasificaciones distintas de SUCCESS solo se inserta el
@@ -165,11 +162,15 @@ class ScraperPersistence:
                 return result
 
             # --- Vote event ---
-            event_dict = process_result.vote_event or self._build_vote_event(
-                process_result.parsed_data,
-                source_url=fetch.url,
-                source_tag=source_tag,
-            )
+            if process_result.vote_event:
+                event_dict = process_result.vote_event
+            else:
+                from scraper.pipeline import _build_vote_event as pipeline_build_vote_event
+                event_dict = pipeline_build_vote_event(
+                    process_result.fetch_result,
+                    process_result.parsed_data or {},
+                    source_tag=str(source_tag),
+                )
             vote_event_id, event_inserted = insert_raw_vote_event(self._conn, event_dict)
             result["vote_event_id"] = vote_event_id
             result["event_inserted"] = event_inserted
@@ -220,7 +221,7 @@ class ScraperPersistence:
     def _build_source_asset(
         self,
         fetch_result: FetchResult,
-        source_tag: SourceTag,
+        source_tag: str,
     ) -> dict[str, Any]:
         """Mapea ``FetchResult`` → dict compatible con ``SourceAsset``."""
         asset_dir = self.raw_base_dir / "{asset_id}"  # placeholder, se resuelve tras insert
@@ -236,7 +237,7 @@ class ScraperPersistence:
             request_payload_hash = hashlib.sha256(fetch_result.request_payload).hexdigest()
 
         return {
-            "source_tag": source_tag.value,
+            "source_tag": source_tag,
             "url": fetch_result.url,
             "method": Method(fetch_result.method.upper()).value,
             "request_payload_hash": request_payload_hash,
@@ -252,64 +253,6 @@ class ScraperPersistence:
             "run_id": self.run_id,
             "raw_body_path": raw_body_path,
         }
-
-    def _build_vote_event(
-        self,
-        parsed_data: dict | None,
-        source_url: str,
-        source_tag: SourceTag,
-    ) -> dict[str, Any]:
-        """Construye un dict para ``RawVoteEvent`` inferido desde ``source_tag``."""
-        chamber = self._infer_chamber(source_tag)
-        legislature = Legislature.LXVI.value
-
-        vote_date = None
-        title = None
-        subject = None
-        metadata_json: dict | None = None
-
-        if parsed_data and isinstance(parsed_data, dict):
-            metadata = parsed_data.get("metadata", {}) or {}
-            if not isinstance(metadata, dict):
-                metadata = {}
-
-            if metadata:
-                vote_date = metadata.get("fecha") or metadata.get("date") or metadata.get("vote_date")
-                title = metadata.get("titulo") or metadata.get("title") or metadata.get("nomtit")
-                subject = metadata.get("asunto") or metadata.get("subject")
-                metadata_json = metadata if metadata else None
-
-            # Fallback a meta interno del parser
-            meta = parsed_data.get("meta", {})
-            if isinstance(meta, dict):
-                if not title:
-                    title = meta.get("nomtit") or meta.get("title") or meta.get("titulo")
-                if not subject:
-                    subject = meta.get("asunto") or meta.get("subject")
-                if not vote_date:
-                    vote_date = meta.get("fecha") or meta.get("date")
-
-        return {
-            "chamber": chamber.value,
-            "legislature": legislature,
-            "vote_date": vote_date,
-            "title": title,
-            "subject": subject,
-            "source_url": source_url,
-            "metadata_json": json.dumps(metadata_json, ensure_ascii=False) if metadata_json else None,
-        }
-
-    @staticmethod
-    def _infer_chamber(source_tag: SourceTag) -> Chamber:
-        if source_tag in (
-            SourceTag.DIP_SITL,
-            SourceTag.DIP_GACETA_POST,
-            SourceTag.DIP_GACETA_TABLA,
-        ):
-            return Chamber.DIPUTADOS
-        if source_tag in (SourceTag.SEN_LXVI_AJAX, SourceTag.SEN_LXVI_HTML):
-            return Chamber.SENADO
-        raise ValueError(f"No se puede inferir cámara para {source_tag}")
 
     def close(self) -> None:
         """Cierra la conexión a la base de datos."""

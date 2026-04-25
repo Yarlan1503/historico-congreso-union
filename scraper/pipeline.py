@@ -10,9 +10,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from f1.parsers import xp_diputados_gaceta, xp_diputados_sitl, xp_senado_lxvi
+import scraper._builtin_sources  # noqa: F401 — registra fuentes built-in
 from f2.models import AssetRole
 from scraper._types import FetchResult, ProcessResult
+from scraper.source_registry import get_parser
 from shared.transform_bridge import (
     build_counts,
     infer_chamber,
@@ -31,19 +32,9 @@ PARSER_VERSION = "scraper_0.1.0"
 
 def get_parser_module(source_tag: str) -> tuple[Callable, str]:
     """Devuelve (función_parser, suffix) para un ``source_tag``."""
-    mapping: dict[str, tuple[Callable, str]] = {
-        "dip_sitl": (xp_diputados_sitl.parse_response, "dip_sitl"),
-        "dip_infopal": (xp_diputados_sitl.parse_response, "dip_sitl"),
-        "dip_gaceta_tabla": (xp_diputados_gaceta.parse_tabla_agregada, "dip_gaceta_tabla"),
-        "dip_gaceta_post": (xp_diputados_gaceta.parse_response, "dip_gaceta_post"),
-        "sen_lxvi_ajax": (xp_senado_lxvi.parse_response, "sen_lxvi_ajax"),
-        "senado_lxvi_ajax": (xp_senado_lxvi.parse_response, "sen_lxvi_ajax"),
-        "sen_lxvi_html": (xp_senado_lxvi.parse_response, "sen_lxvi_html"),
-        "senado_lxvi_html": (xp_senado_lxvi.parse_response, "sen_lxvi_html"),
-    }
     try:
-        return mapping[source_tag]
-    except KeyError as exc:
+        return get_parser(source_tag)
+    except ValueError as exc:
         raise ValueError(f"source_tag no reconocido: {source_tag}") from exc
 
 
@@ -77,7 +68,32 @@ def _build_source_asset(fetch_result: FetchResult, source_tag: str) -> dict[str,
     }
 
 
-def _build_vote_event(fetch_result: FetchResult, parsed: dict[str, Any]) -> dict[str, Any]:
+def _infer_legislature(source_tag: str) -> str:
+    """Infier la legislatura desde el registry o por heurística del tag."""
+    from scraper.source_registry import get_source
+    try:
+        info = get_source(source_tag)
+        return info.legislature
+    except ValueError:
+        pass
+
+    # Fallback: buscar patrón de legislatura en el tag
+    import re
+    tag_upper = source_tag.upper()
+    for leg in ("LXVI", "LXV", "LXIV", "LXIII", "LXII", "LXI", "LX"):
+        if leg in tag_upper:
+            return leg
+
+    # Default: LXVI para backward compatibility con tags existentes
+    logger.warning("No se pudo inferir legislatura para '%s'; default=LXVI", source_tag)
+    return "LXVI"
+
+
+def _build_vote_event(
+    fetch_result: FetchResult,
+    parsed: dict[str, Any],
+    source_tag: str = "",
+) -> dict[str, Any]:
     metadata = _extract_metadata(parsed)
     vote_date = None
     for key in ("fecha", "date", "vote_date", "publication_date"):
@@ -85,9 +101,13 @@ def _build_vote_event(fetch_result: FetchResult, parsed: dict[str, Any]) -> dict
             vote_date = parse_date_heuristic(metadata[key])
             if vote_date is not None:
                 break
+
+    # Infer legislature from registry
+    legislature = _infer_legislature(source_tag)
+
     return {
-        "chamber": infer_chamber(parsed.get("source_tag", "")),
-        "legislature": "LXVI",
+        "chamber": infer_chamber(source_tag),
+        "legislature": legislature,
         "vote_date": vote_date,
         "title": metadata.get("titulo") or metadata.get("title") or metadata.get("asunto"),
         "subject": metadata.get("asunto") or metadata.get("dictamen") or metadata.get("subject"),
@@ -101,21 +121,39 @@ def _infer_asset_role(source_tag: str, parsed: dict[str, Any]) -> AssetRole:
     counts = parsed.get("counts")
     group_sentido = parsed.get("group_sentido")
 
-    if source_tag == "dip_sitl":
+    # Pattern-based inference
+    tag = source_tag.lower()
+
+    # SITL/INFOPAL pattern: aggregate and nominal in separate assets
+    if "sitl" in tag:
         if nominal:
             return AssetRole.PRIMARY_NOMINAL
         if counts:
             return AssetRole.PRIMARY_AGGREGATE
-    if source_tag == "sen_lxvi_ajax":
+
+    # Senado AJAX pattern
+    if "_ajax" in tag:
         if nominal:
             return AssetRole.PRIMARY_NOMINAL
-    if source_tag == "dip_gaceta_tabla":
+        return AssetRole.METADATA
+
+    # Gaceta patterns
+    if "gaceta" in tag and "tabla" in tag:
         if group_sentido:
             return AssetRole.PRIMARY_AGGREGATE
-    if source_tag == "dip_gaceta_post":
+    if "gaceta" in tag and "post" in tag:
         return AssetRole.METADATA
-    if source_tag == "sen_lxvi_html":
+
+    # Senado HTML pattern
+    if "_html" in tag and "sen" in tag:
         return AssetRole.TRIANGULATION
+
+    # Generic: if has nominal → PRIMARY_NOMINAL, if has counts → PRIMARY_AGGREGATE
+    if nominal:
+        return AssetRole.PRIMARY_NOMINAL
+    if counts or group_sentido:
+        return AssetRole.PRIMARY_AGGREGATE
+
     return AssetRole.METADATA
 
 
@@ -230,7 +268,7 @@ def process(fetch_result: FetchResult, source_tag: str) -> ProcessResult:
             )
 
     source_asset = _build_source_asset(fetch_result, source_tag)
-    vote_event = _build_vote_event(fetch_result, parsed)
+    vote_event = _build_vote_event(fetch_result, parsed, source_tag=source_tag)
     vote_event_asset = {
         "asset_role": _infer_asset_role(source_tag, parsed),
     }
