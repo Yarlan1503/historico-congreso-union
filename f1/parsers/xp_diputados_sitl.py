@@ -68,42 +68,56 @@ def _extract_counts_from_soup(soup: BeautifulSoup) -> XPCounts | None:
         rows = table.find_all("tr")
         if len(rows) < 2:
             continue
-        header_row = rows[0]
+        # Buscar dinámicamente la primera fila que contenga claves de voto
+        header_row = None
+        header_idx = -1
+        for idx, candidate in enumerate(rows):
+            cells = candidate.find_all(["th", "td"])
+            texts = [c.get_text(strip=True) for c in cells]
+            canonical = [_normalize_count_key(t) for t in texts]
+            if any(ch is not None for ch in canonical):
+                header_row = candidate
+                header_idx = idx
+                break
+
+        if header_row is None:
+            continue  # esta tabla no tiene headers de voto
+
         headers: list[str] = []
         for th in header_row.find_all(["th", "td"]):
             headers.append(th.get_text(strip=True))
 
-        # Si los encabezados parecen conteos, buscar fila TOTAL o fallback a primera fila
         canonical_headers = [_normalize_count_key(h) for h in headers]
-        if any(ch is not None for ch in canonical_headers):
-            total_row = None
-            first_data_row = None
-            for data_row in rows[1:]:
-                if first_data_row is None:
-                    first_data_row = data_row
-                cells = data_row.find_all(["td", "th"])
-                if cells:
-                    first_cell_text = cells[0].get_text(strip=True)
-                    normalized = first_cell_text.lower().replace("ó", "o").strip()
-                    if normalized == "total":
-                        total_row = data_row
-                        break
 
-            target_row = total_row if total_row is not None else first_data_row
-            if target_row is not None:
-                cells = target_row.find_all(["td", "th"])
-                for idx, ch in enumerate(canonical_headers):
-                    if ch is None or idx >= len(cells):
-                        continue
-                    text_num = cells[idx].get_text(strip=True)
-                    try:
-                        counts[ch] = int(text_num)
-                    except ValueError:
-                        logger.debug("No se pudo convertir a int: %s", text_num)
-                        continue
-            # Si ya tenemos al menos un conteo, preferimos esta tabla
-            if counts:
-                break
+        # Buscar fila TOTAL o fallback a primera fila de datos
+        total_row = None
+        first_data_row = None
+        for data_row in rows[header_idx + 1:]:
+            if first_data_row is None:
+                first_data_row = data_row
+            cells = data_row.find_all(["td", "th"])
+            if cells:
+                first_cell_text = cells[0].get_text(strip=True)
+                normalized = first_cell_text.lower().replace("ó", "o").strip()
+                if normalized == "total":
+                    total_row = data_row
+                    break
+
+        target_row = total_row if total_row is not None else first_data_row
+        if target_row is not None:
+            cells = target_row.find_all(["td", "th"])
+            for idx, ch in enumerate(canonical_headers):
+                if ch is None or idx >= len(cells):
+                    continue
+                text_num = cells[idx].get_text(strip=True)
+                try:
+                    counts[ch] = int(text_num)
+                except ValueError:
+                    logger.debug("No se pudo convertir a int: %s", text_num)
+                    continue
+        # Si ya tenemos al menos un conteo, preferimos esta tabla
+        if counts:
+            break
 
     # ------------------------------------------------------------------
     # Estrategia B: si la tabla no funcionó, regex línea por línea
