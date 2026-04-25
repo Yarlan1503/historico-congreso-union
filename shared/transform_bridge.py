@@ -148,12 +148,24 @@ def validate_counts_vs_nominal(counts: dict[str, Any], nominal: list[dict]) -> d
 def map_source_tag(manifest_source_tag: str, packet_id: str) -> str:
     """Mapea ``source_tag`` crudo del manifest al string canónico.
 
+    Usa el registry como fuente de truth.  Si el tag está registrado,
+    lo devuelve directamente.  Si no, aplica heurísticas legacy.
+
     Raises:
         ValueError: si el tag no tiene mapeo conocido.
     """
+    from scraper.source_registry import get_source
+
     tag = manifest_source_tag.lower().strip()
-    if tag == "dip_sitl":
-        return "dip_sitl"
+
+    # Si está en el registry, devolver directamente
+    try:
+        get_source(tag)
+        return tag
+    except ValueError:
+        pass
+
+    # Heurísticas legacy para tags no estándar
     if tag in ("senado_lxvi_ajax", "sen_lxvi_ajax"):
         return "sen_lxvi_ajax"
     if tag in ("senado_lxvi_html", "sen_lxvi_html"):
@@ -162,4 +174,5 @@ def map_source_tag(manifest_source_tag: str, packet_id: str) -> str:
         if "tabla" in packet_id.lower():
             return "dip_gaceta_tabla"
         return "dip_gaceta_post"
+
     raise ValueError(f"source_tag no mapeado: {manifest_source_tag!r}")
