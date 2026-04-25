@@ -21,8 +21,40 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+# Pool ampliado built-in (12+ UAs realistas)
+_DEFAULT_UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+]
+
+_ACCEPT_LANGUAGE_VARIANTS = [
+    "es-MX,es;q=0.9,en-US;q=0.8,en;q=0.7",
+    "es-ES,es;q=0.9,en-US;q=0.8",
+    "es-MX,es;q=0.8,en;q=0.5",
+    "en-US,en;q=0.9,es;q=0.8",
+    "es;q=0.9,en;q=0.7",
+]
+
+_ACCEPT_ENCODING_VARIANTS = [
+    "gzip, deflate, br",
+    "gzip, deflate",
+    "gzip, br",
+    "br, gzip, deflate",
+]
+
+
 class HTTPScraperEngine:
-    """Cliente HTTP reutilizable con rotación de UA, delays y detección de WAF."""
+    """Cliente HTTP reutilizable con UA por sesión, rotación de headers complementarios, delays y detección de WAF."""
 
     def __init__(
         self,
@@ -42,12 +74,14 @@ class HTTPScraperEngine:
             follow_redirects=True,
         )
 
+        # UA pool: config o built-in ampliado
         self.user_agents: list[str] = self.config.get("user_agent_pool", [])
         if not self.user_agents:
-            logger.warning("user_agent_pool vacío; usando UA por defecto")
-            self.user_agents = [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            ]
+            self.user_agents = list(_DEFAULT_UA_POOL)
+
+        # UA fijo por sesión
+        self._session_ua: str = random.choice(self.user_agents)
+        logger.info("Session UA selected: %s", self._session_ua)
 
         self.delay_config = self.config.get("delay", {})
         self.backoff_config = self.config.get("backoff", {})
@@ -103,14 +137,32 @@ class HTTPScraperEngine:
     def _check_waf_from_response(
         self, response: httpx.Response, source_tag: str
     ) -> tuple[bool, str | None]:
-        """Detecta WAF/bloqueo mediante triggers de configuración TOML."""
+        """Detecta WAF/bloqueo mediante triggers de configuración TOML.
+
+        Soporta dos esquemas de config:
+        - Legacy: ``indeterminate_triggers`` por source_tag individual (xp_config.toml).
+        - Moderno: ``waf_patterns`` con patrones globales (config.toml).
+        """
         if response.status_code in (403, 502, 503, 429):
             return True, f"BLOCKING_STATUS_CODE:{response.status_code}"
 
+        # Intentar triggers legacy por source_tag primero (backward compatible)
         triggers = self.config.get("indeterminate_triggers", {}).get(source_tag, {})
-        if not triggers:
-            return False, None
+        if triggers:
+            return self._check_legacy_triggers(response, triggers)
 
+        # Si no hay triggers legacy, usar waf_patterns (nueva config)
+        waf_patterns = self.config.get("waf_patterns", {})
+        if waf_patterns:
+            return self._check_waf_patterns(response, waf_patterns)
+
+        return False, None
+
+    @staticmethod
+    def _check_legacy_triggers(
+        response: httpx.Response, triggers: dict
+    ) -> tuple[bool, str | None]:
+        """Check WAF usando triggers legacy por source_tag."""
         try:
             text = response.content.decode("utf-8")
         except UnicodeDecodeError:
@@ -131,6 +183,30 @@ class HTTPScraperEngine:
         return False, None
 
     @staticmethod
+    def _check_waf_patterns(
+        response: httpx.Response, waf_patterns: dict
+    ) -> tuple[bool, str | None]:
+        """Check WAF usando patrones globales en vez de por source_tag."""
+        try:
+            text = response.content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = response.content.decode("iso-8859-1", errors="replace")
+        text_lower = text.lower()
+
+        for substr in waf_patterns.get("body_substrings", []):
+            if substr.lower() in text_lower:
+                return True, f"BODY_SUBSTRING:{substr}"
+
+        for hv in waf_patterns.get("header_values", []):
+            hv_lower = hv.lower()
+            for key, value in response.headers.items():
+                header_line = f"{key}: {value}".lower()
+                if hv_lower in header_line:
+                    return True, f"HEADER_VALUE:{hv}"
+
+        return False, None
+
+    @staticmethod
     def _detect_cache(response: httpx.Response) -> bool:
         """Devuelve True si la respuesta proviene de cache upstream."""
         cache_headers = ("x-cache", "cf-cache-status", "x-drupal-cache")
@@ -141,11 +217,17 @@ class HTTPScraperEngine:
         return False
 
     # ------------------------------------------------------------------
-    # Core fetch
+    # Session UA
     # ------------------------------------------------------------------
 
-    def _pick_ua(self) -> str:
-        return random.choice(self.user_agents)
+    @property
+    def session_ua(self) -> str:
+        """El UA seleccionado para esta sesión."""
+        return self._session_ua
+
+    # ------------------------------------------------------------------
+    # Core fetch
+    # ------------------------------------------------------------------
 
     def fetch(
         self,
@@ -158,7 +240,11 @@ class HTTPScraperEngine:
         """Ejecuta un request HTTP y devuelve un ``FetchResult`` estandarizado."""
         self._apply_delay(source_tag, attempt_num=1)
 
-        headers: dict[str, str] = {"User-Agent": self._pick_ua()}
+        headers: dict[str, str] = {
+            "User-Agent": self._session_ua,
+            "Accept-Language": random.choice(_ACCEPT_LANGUAGE_VARIANTS),
+            "Accept-Encoding": random.choice(_ACCEPT_ENCODING_VARIANTS),
+        }
         if extra_headers:
             headers.update(extra_headers)
 
