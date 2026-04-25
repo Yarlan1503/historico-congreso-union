@@ -244,7 +244,12 @@ def main(argv: list[str] | None = None) -> int:
     # 5. Ejecutar scraping
     # ------------------------------------------------------------------
     try:
-        with HTTPScraperEngine(config_path=args.config) as engine:
+        if args.source in ("senado", "senado_historico"):
+            from scraper.senado_client import SenadoAntiWAFClient
+            engine_cm = SenadoAntiWAFClient(config_path=args.config)
+        else:
+            engine_cm = HTTPScraperEngine(config_path=args.config)
+        with engine_cm as engine:
             if args.dry_run:
                 persistence: ScraperPersistence | DryRunPersistence = (
                     DryRunPersistence(run_id=run_id)

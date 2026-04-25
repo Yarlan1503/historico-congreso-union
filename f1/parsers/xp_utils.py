@@ -96,13 +96,14 @@ _WAF_CHALLENGE_MARKERS = (
 _WAF_FALSE_POSITIVE_PATTERNS: tuple[str, ...] = (
     r"cdnjs\.cloudflare\.com",
     r"cloudflare\.com/ajax/libs/",
+    r"/_incapsula_resource",  # Script CDN legítimo del Senado, no WAF challenge
 )
 
 _TIMEOUT_MARKERS = (
     "timeout",
     "time out",
     "gateway timeout",
-    "504",
+    "error 504",
 )
 
 _CACHE_MARKERS = (
