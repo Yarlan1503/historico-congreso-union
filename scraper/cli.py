@@ -12,47 +12,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# Asegurar que la raíz del proyecto esté en PYTHONPATH para imports relativos
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 from f2.db_init import init_db
+from scraper.dry_run import DryRunPersistence
 from scraper.engine import HTTPScraperEngine
 from scraper.persistence import ScraperPersistence
+from scraper.sources.gaceta import scrape_gaceta
 from scraper.sources.gaceta_lxvi import scrape_gaceta_lxvi
+from scraper.sources.senado import scrape_senado
+from scraper.sources.senado_historico import scrape_senado_historico
 from scraper.sources.senado_lxvi import scrape_senado_lxvi
+from scraper.sources.sitl import scrape_sitl
 from scraper.sources.sitl_lxvi import scrape_sitl_lxvi
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Dry-run persistence stub
-# ---------------------------------------------------------------------------
-
-class DryRunPersistence:
-    """Stub de persistencia para modo dry-run: solo loguea, no toca DB ni disco."""
-
-    def __init__(self, run_id: str | None = None) -> None:
-        if run_id is None:
-            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-            run_id = f"{ts}_{secrets.token_hex(4)}"
-        self.run_id = run_id
-
-    def persist(self, process_result: Any, source_tag: Any) -> dict[str, Any]:
-        logger.info(
-            "[DRY-RUN] persist: %s (source=%s)",
-            process_result.classification,
-            source_tag,
-        )
-        return {}
-
-    def __enter__(self) -> DryRunPersistence:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        pass
+# PROJECT_ROOT se usa solo para defaults de CLI args
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +69,17 @@ def main(argv: list[str] | None = None) -> int:
         "--source",
         type=str,
         default="all",
-        choices=["sitl_lxvi", "gaceta_lxvi", "senado_lxvi", "all"],
+        choices=[
+            "sitl", "gaceta", "senado", "senado_historico",
+            "sitl_lxvi", "gaceta_lxvi", "senado_lxvi", "all",
+        ],
         help="Fuente a scrapear",
+    )
+    parser.add_argument(
+        "--legislature",
+        type=str,
+        default="LXVI",
+        help="Legislatura para fuentes paramétricas (LXVI, LXV, LXIV, LXIII, LXII)",
     )
     parser.add_argument(
         "--since",
@@ -106,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--config",
         type=Path,
-        default=PROJECT_ROOT / "f1" / "config" / "xp_config.toml",
+        default=PROJECT_ROOT / "scraper" / "config.toml",
         help="Archivo de configuración TOML",
     )
     parser.add_argument(
@@ -201,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     since = args.since
     tabla_range = args.tabla_range
     id_range = args.id_range
+    legislature = args.legislature
 
     # ------------------------------------------------------------------
     # 3. Generar run_id compartido para toda la ejecución
@@ -212,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     # 4. Determinar fuentes a ejecutar
     # ------------------------------------------------------------------
     if args.source == "all":
-        sources_to_run = ["sitl_lxvi", "gaceta_lxvi", "senado_lxvi"]
+        sources_to_run = ["sitl", "gaceta", "senado"]
     else:
         sources_to_run = [args.source]
 
@@ -238,7 +223,38 @@ def main(argv: list[str] | None = None) -> int:
                 for source in sources_to_run:
                     logger.info("Iniciando fuente: %s", source)
                     try:
-                        if source == "sitl_lxvi":
+                        if source == "sitl":
+                            stats = scrape_sitl(
+                                engine,
+                                persistence,
+                                legislature=legislature,
+                                since=since,
+                                max_votaciones=args.max_votaciones,
+                            )
+                        elif source == "gaceta":
+                            stats = scrape_gaceta(
+                                engine,
+                                persistence,
+                                legislature=legislature,
+                                since=since,
+                                tabla_range=tabla_range,
+                            )
+                        elif source == "senado":
+                            stats = scrape_senado(
+                                engine,
+                                persistence,
+                                legislature=legislature,
+                                since=since,
+                                id_range=id_range,
+                            )
+                        elif source == "senado_historico":
+                            stats = scrape_senado_historico(
+                                engine,
+                                persistence,
+                                legislature=legislature,
+                                since=since,
+                            )
+                        elif source == "sitl_lxvi":
                             stats = scrape_sitl_lxvi(
                                 engine,
                                 persistence,
@@ -311,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "run_id": run_id,
         "dry_run": args.dry_run,
+        "legislature": legislature,
         "since": str(since) if since else None,
         "sources": sources_to_run,
         "totals": totals,
