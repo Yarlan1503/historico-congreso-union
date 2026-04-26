@@ -4,6 +4,13 @@ Soporta dos source_tags:
 - ``senado_lxvi_html``: página completa de votación ``/66/votacion/{id}``.
 - ``senado_lxvi_ajax``: fragmento AJAX hipotético (HTML parcial o JSON).
 
+.. important:: CRITICAL DOMAIN KNOWLEDGE (Nolan, 2026-04-26)
+   El path ``/66/`` en senado.gob.mx **NO significa Legislatura LXVI**.
+   El "66" refiere a la legislatura en que se migró la información legislativa
+   al sitio actual por temas políticos. Los datos bajo ``/66/`` abarcan de la
+   LX a la LXVI Legislatura (votaciones 1-5001+). NO confundir el path con
+   la legislatura de los datos contenidos.
+
 El parser es defensivo: nunca lanza excepciones silenciosas y devuelve
 ``Indeterminate`` cuando detecta WAF, bloqueos o estructuras no reconocidas.
 """

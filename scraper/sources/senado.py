@@ -3,6 +3,13 @@
 Soporta legislaturas con portal AJAX+HTML (LXVI, LXV, LXIV) donde se itera
 sobre IDs de votación. Lee las URLs desde ``config.toml``.
 
+.. important:: CRITICAL DOMAIN KNOWLEDGE (Nolan, 2026-04-26)
+   El path ``/66/`` en senado.gob.mx **NO significa Legislatura LXVI**.
+   El "66" refiere a la legislatura en que se migró la información legislativa
+   al sitio actual por temas políticos. Los datos bajo ``/66/`` abarcan de la
+   LX a la LXVI Legislatura (votaciones 1-5001+). NO confundir el path con
+   la legislatura de los datos contenidos. Ver config.toml para detalle.
+
 Uso:
     scrape_senado(engine, persistence, legislature="LXVI")
     scrape_senado(engine, persistence, legislature="LXV")

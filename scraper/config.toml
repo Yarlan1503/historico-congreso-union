@@ -48,6 +48,14 @@ sitl_index = "https://sitl.diputados.gob.mx/LXVI_leg/votacionesxperiodonplxvi.ph
 sitl_aggregate = "https://sitl.diputados.gob.mx/LXVI_leg/estadistico_votacionnplxvi.php?votaciont={votacion_id}"
 sitl_nominal = "https://sitl.diputados.gob.mx/LXVI_leg/listados_votacionesnplxvi.php?partidot={partidot}&votaciont={votacion_id}"
 gaceta_base = "https://gaceta.diputados.gob.mx/Gaceta/Votaciones/66/"
+# ⚠️  CRITICAL DOMAIN KNOWLEDGE (Nolan, 2026-04-26):
+# El path /66/ en senado.gob.mx NO significa "Legislatura LXVI". El "66" refiere
+# a la legislatura en que se migró la información legislativa al sitio actual por
+# temas políticos. Los datos bajo /66/ abarcan de la LX a la LXVI Legislatura
+# (votaciones 1-5001+). Confirmado: LX (1-666, 2006-2009), LXI (667-848),
+# LXII-LXV (849-3696), LXIV (3697-3848), LXV-LXVI (3849+).
+# NO confundir el /66/ del path con la legislatura de los datos contenidos.
+# Esto fue discutido y aclarado múltiples veces — persistir este conocimiento.
 [legislatures.LXVI.urls.senado]
 base = "https://www.senado.gob.mx"
 ajax = "https://www.senado.gob.mx/66/app/votaciones/functions/viewTableVot.php?action=ajax&cell=1&order=DESC&votacion={votacion_id}&q="

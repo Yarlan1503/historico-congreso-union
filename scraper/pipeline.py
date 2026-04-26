@@ -69,8 +69,16 @@ def _build_source_asset(fetch_result: FetchResult, source_tag: str) -> dict[str,
 
 
 def _infer_legislature(source_tag: str, url: str | None = None) -> str:
-    """Infier la legislatura desde URL, registry o heurística del tag."""
+    """Infier la legislatura desde URL, registry o heurística del tag.
+
+    .. note::
+       Para Senado: el path /66/ NO indica Legislatura LXVI. Ver docstring
+       de scraper/sources/senado.py para detalle. La legislatura del Senado
+       se infiere del registry, no del path /NN/.
+    """
     # Priority 1: URL pattern (most reliable for multi-legislature sources)
+    # NOTE: This matches Diputados SITL URLs like /LXVI_leg/, /LXV_leg/ etc.
+    # Senado URLs like /66/ do NOT match this pattern — that's intentional.
     if url:
         import re
         m = re.search(r'/((?:LX{0,2}(?:IV|V?I{0,3}))_leg)/', url, re.IGNORECASE)
