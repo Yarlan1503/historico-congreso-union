@@ -29,8 +29,9 @@ def export_snapshot(
     db_path: Path,
     raw_dir: Path,
     output_base: Path,
-    chamber_source: str,  # 'diputados'
+    chamber_source: str,  # 'diputados' o 'senado'
     legislature: str,  # 'LXVI'
+    catalog_path: Path | None = None,
 ) -> dict[str, Any]:
     """Exporta un snapshot completo para una cámara y legislatura.
 
@@ -48,6 +49,7 @@ def export_snapshot(
         output_base: Directorio base para snapshots.
         chamber_source: 'diputados' o 'senado'.
         legislature: 'LXIV', 'LXV', 'LXVI'.
+        catalog_path: Path opcional al CSV del catálogo de personas.
 
     Returns:
         Dict con:
@@ -58,15 +60,15 @@ def export_snapshot(
 
     Raises:
         FileExistsError: Si el snapshot ya existe (idempotencia).
-        ValueError: Si chamber no es soportada o legislatura fuera de scope.
+        ValueError: Si chamber no es soportado o legislatura fuera de scope.
     """
     # ------------------------------------------------------------------
     # 1. Validar scope
     # ------------------------------------------------------------------
-    if chamber_source != "diputados":
+    if chamber_source not in ("diputados", "senado"):
         raise ValueError(
             f"Chamber no soportado: {chamber_source!r}. "
-            f"Solo 'diputados' está habilitado en este contrato."
+            f"Valores válidos: 'diputados', 'senado'."
         )
     if legislature not in _VALID_LEGISLATURES:
         raise ValueError(
@@ -107,7 +109,8 @@ def export_snapshot(
         raw_db_path = snapshot_dir / "raw.db"
         logger.info("Generando raw.db en %s ...", raw_db_path)
         row_counts = create_raw_db(
-            raw_db_path, source_conn, chamber_source, legislature, package_id, run_id
+            raw_db_path, source_conn, chamber_source, legislature,
+            package_id, run_id, catalog_path,
         )
         logger.info("raw.db poblado: %s", row_counts)
 
@@ -119,7 +122,13 @@ def export_snapshot(
         cache_index = build_cache_index(
             source_conn, camara, legislature, chamber_source
         )
-        quality_report = build_quality_report(camara, legislature)
+
+        # Determinar si hay disambiguation.
+        has_disambiguation = catalog_path is not None and catalog_path.exists()
+
+        quality_report = build_quality_report(
+            camara, legislature, person_disambiguation=has_disambiguation,
+        )
         provenance = build_provenance(
             source_conn, camara, legislature, chamber_source
         )
@@ -150,7 +159,10 @@ def export_snapshot(
             camara=camara,
             legislatura=legislature,
             artifact_files=artifact_files,
-            notes="Diagnostic export; person disambiguation pending.",
+            notes=(
+                "Export with person disambiguation." if has_disambiguation
+                else "Diagnostic export; person disambiguation pending."
+            ),
         )
 
         # ------------------------------------------------------------------

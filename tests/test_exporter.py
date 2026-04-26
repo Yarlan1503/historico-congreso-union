@@ -476,16 +476,16 @@ class TestExportSnapshotFull:
                     legislature="LXVI",
                 )
 
-    def test_rejects_senado(self, tmp_path):
-        """Verifica que Senado es rechazado."""
+    def test_rejects_invalid_chamber(self, tmp_path):
+        """Verifica que chambers inválidos son rechazados."""
         from scraper.exporter.snapshot import export_snapshot
 
-        with pytest.raises(ValueError, match="diputados"):
+        with pytest.raises(ValueError, match="no soportado"):
             export_snapshot(
                 db_path=tmp_path / "dummy.db",
                 raw_dir=tmp_path / "raw",
                 output_base=tmp_path / "snapshots",
-                chamber_source="senado",
+                chamber_source="judicial",
                 legislature="LXVI",
             )
 
@@ -501,6 +501,120 @@ class TestExportSnapshotFull:
                 chamber_source="diputados",
                 legislature="LXII",
             )
+
+    def test_accepts_senado(self, source_db_file, tmp_path):
+        """Verifica que Senado es aceptado como chamber válida."""
+        from scraper.exporter.snapshot import export_snapshot
+
+        raw_dir = tmp_path / "raw"
+        raw_dir.mkdir()
+        output_base = tmp_path / "snapshots"
+
+        # Source DB solo tiene datos de diputados, así que senado genera
+        # raw.db vacío pero sin error de validación.
+        result = export_snapshot(
+            db_path=source_db_file,
+            raw_dir=raw_dir,
+            output_base=output_base,
+            chamber_source="senado",
+            legislature="LXVI",
+        )
+
+        snapshot_dir = Path(result["snapshot_dir"])
+        assert (snapshot_dir / "raw.db").exists()
+        assert (snapshot_dir / "manifest.json").exists()
+
+    def test_no_catalog_null_source_person_id(self, source_db_file, tmp_path):
+        """Verifica que sin catalog_path, source_person_id es NULL."""
+        from scraper.exporter.snapshot import export_snapshot
+
+        raw_dir = tmp_path / "raw"
+        raw_dir.mkdir()
+        output_base = tmp_path / "snapshots"
+
+        result = export_snapshot(
+            db_path=source_db_file,
+            raw_dir=raw_dir,
+            output_base=output_base,
+            chamber_source="diputados",
+            legislature="LXVI",
+        )
+
+        snapshot_dir = Path(result["snapshot_dir"])
+        raw_db = sqlite3.connect(str(snapshot_dir / "raw.db"))
+
+        rows = raw_db.execute("SELECT source_person_id FROM raw_person").fetchall()
+        assert all(r[0] is None for r in rows), f"Expected all NULL, got: {rows}"
+
+        raw_db.close()
+
+    def test_catalog_populates_source_person_id(self, source_db_file, tmp_path):
+        """Verifica que catalog_path pobla source_person_id y organization_key."""
+        from scraper.exporter.snapshot import export_snapshot
+
+        # Crear catalog CSV con entries para test persons.
+        catalog_csv = tmp_path / "person_catalog.csv"
+        catalog_csv.write_text(
+            "canonical_name,person_key,original_names,cast_count,chambers,"
+            "party_senado,n_variants,is_ambiguous\n"
+            "juan perez,juan_perez,Juan Pérez,5,diputados,MORENA,1,False\n"
+            "ana garcia,ana_garcia,Ana García,1,diputados|senado,PAN,1,False\n"
+        )
+
+        raw_dir = tmp_path / "raw"
+        raw_dir.mkdir()
+        output_base = tmp_path / "snapshots"
+
+        result = export_snapshot(
+            db_path=source_db_file,
+            raw_dir=raw_dir,
+            output_base=output_base,
+            chamber_source="diputados",
+            legislature="LXVI",
+            catalog_path=catalog_csv,
+        )
+
+        snapshot_dir = Path(result["snapshot_dir"])
+        raw_db = sqlite3.connect(str(snapshot_dir / "raw.db"))
+
+        # Verificar source_person_id poblado para matched persons.
+        person_rows = raw_db.execute(
+            "SELECT person_key, source_person_id, notes FROM raw_person ORDER BY person_key"
+        ).fetchall()
+        person_map = {r[0]: (r[1], r[2]) for r in person_rows}
+
+        # Juan Pérez y Ana García están en el catálogo → source_person_id poblado.
+        assert person_map["juan_perez"][0] == "juan_perez"
+        assert "Matched via" in person_map["juan_perez"][1]
+
+        assert person_map["ana_garcia"][0] == "ana_garcia"
+        assert "Matched via" in person_map["ana_garcia"][1]
+
+        # José López NO está en el catálogo → source_person_id es NULL.
+        assert person_map["jose_lopez"][0] is None
+
+        # Verificar organization_key para personas con party_senado.
+        mem_rows = raw_db.execute(
+            "SELECT rp.person_key, rm.organization_key "
+            "FROM raw_membership rm "
+            "JOIN raw_person rp ON rm.raw_person_id = rp.raw_person_id "
+            "ORDER BY rp.person_key"
+        ).fetchall()
+        mem_map = {r[0]: r[1] for r in mem_rows}
+
+        assert mem_map["juan_perez"] == "MORENA"
+        assert mem_map["ana_garcia"] == "PAN"
+        assert mem_map["jose_lopez"] is None
+
+        # Verificar quality_report tiene status "pass" con disambiguation.
+        qr = json.loads((snapshot_dir / "quality_report.json").read_text())
+        assert qr["status"] == "pass"
+
+        # Verificar manifest notes refleja disambiguation.
+        manifest = json.loads((snapshot_dir / "manifest.json").read_text())
+        assert "disambiguation" in manifest["notes"].lower()
+
+        raw_db.close()
 
 
 # ============================================================================

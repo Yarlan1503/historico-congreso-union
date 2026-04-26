@@ -186,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
         snapshots_base = PROJECT_ROOT / "snapshots"
         raw_dir = args.raw_dir
 
+        catalog_path = PROJECT_ROOT / "data" / "person_catalog.csv"
+
         logger.info("Iniciando export: camara=%s legislature=%s", camara, legislature)
         result = export_snapshot(
             db_path=args.db_path,
@@ -193,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
             output_base=snapshots_base,
             chamber_source=chamber_source,
             legislature=legislature,
+            catalog_path=catalog_path if catalog_path.exists() else None,
         )
         logger.info("Export completado: %s", json.dumps(result, indent=2, default=str))
         return 0

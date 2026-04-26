@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    pass
 
 try:
     from f1.parsers.xp_types import XPCounts, XPIndeterminate

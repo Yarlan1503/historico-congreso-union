@@ -8,14 +8,6 @@ filesystem; solo transforman datos en memoria.
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# Tabla de transliteración para quitar acentos (sin dependencias externas)
-# ---------------------------------------------------------------------------
-_ACCENT_MAP = str.maketrans(
-    "áéíóúÁÉÍÓÚñÑüÜ",
-    "aeiouAEIOUnNuU",
-)
-
-# ---------------------------------------------------------------------------
 # Mapeo de opciones de voto: sentido (source) → option (target)
 # ---------------------------------------------------------------------------
 COUNT_OPTION_MAP: dict[str, str] = {
@@ -67,34 +59,34 @@ def source_chamber_to_contract_camara(chamber: str) -> str:
 def normalize_person_name(name: str) -> str:
     """Normaliza nombre de legislador para usar como base de person_key.
 
-    - Elimina espacios al inicio y final.
-    - Aplica Title Case (``str.title()``).
-    - Colapsa múltiples espacios consecutivos en uno solo.
+    Ahora usa ``canonical_name()`` del person_normalizer para normalización
+    robusta: quita honoríficos, arregla espacios, elimina sufijos.
+
+    Mantiene la firma original para compatibilidad con código existente.
 
     Args:
         name: Nombre crudo del legislador.
 
     Returns:
-        Nombre normalizado.
+        Nombre normalizado en title case.
 
     Examples:
         >>> normalize_person_name("  JUAN PÉREZ  ")
         'Juan Pérez'
     """
-    # strip primero, luego colapsar espacios internos, luego title
-    stripped = name.strip()
-    collapsed = " ".join(stripped.split())
-    return collapsed.title()
+    from scraper.person_normalizer import canonical_name
+
+    canon = canonical_name(name)
+    if not canon:
+        return ""
+    return canon.title()
 
 
 def build_person_key(name: str) -> str:
     """Construye person_key determinista desde un nombre de legislador.
 
-    Proceso:
-    1. Normalizar el nombre con :func:`normalize_person_name`.
-    2. Convertir a minúsculas.
-    3. Reemplazar espacios con ``'_'``.
-    4. Quitar acentos y diacríticos comunes (á→a, é→e, ñ→n, etc.).
+    Usa ``build_canonical_person_key()`` del person_normalizer para
+    normalización completa: honoríficos, espacios, sufijos, acentos.
 
     Es determinista: la misma entrada siempre produce la misma salida.
 
@@ -108,10 +100,9 @@ def build_person_key(name: str) -> str:
         >>> build_person_key("Juan Pérez")
         'juan_perez'
     """
-    normalized = normalize_person_name(name)
-    lower = normalized.lower()
-    no_spaces = lower.replace(" ", "_")
-    return no_spaces.translate(_ACCENT_MAP)
+    from scraper.person_normalizer import build_canonical_person_key
+
+    return build_canonical_person_key(name)
 
 
 # ---------------------------------------------------------------------------

@@ -16,12 +16,6 @@ from typing import Any
 from f2.models import (
     AssetRole,
     Method,
-    RawVoteCast,
-    RawVoteEvent,
-    Sentido,
-    SourceAsset,
-    VoteCounts,
-    VoteEventAsset,
 )
 from scraper._types import FetchResult, ProcessResult
 from shared.persistence_core import (
@@ -61,6 +55,7 @@ class ScraperPersistence:
         raw_base_dir.mkdir(parents=True, exist_ok=True)
 
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("PRAGMA busy_timeout = 5000")
         logger.info("ScraperPersistence inicializada: db=%s raw=%s run_id=%s", db_path, raw_base_dir, run_id)

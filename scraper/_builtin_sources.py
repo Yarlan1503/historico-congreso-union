@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
-from scraper.source_registry import SourceInfo, register_source
 from f2.models import Chamber
+from scraper.source_registry import SourceInfo, register_source
 
 
 def _register_builtins() -> None:
     """Registra todas las fuentes built-in."""
     # --- Diputados LXVI ---
     # Importaciones lazy para evitar circular imports
-    from f1.parsers.xp_diputados_sitl import parse_response as sitl_parse
     from f1.parsers.xp_diputados_gaceta import (
-        parse_tabla_agregada,
         parse_response as gaceta_parse,
     )
-    from f1.parsers.xp_senado_lxvi import parse_response as senado_parse
+    from f1.parsers.xp_diputados_gaceta import (
+        parse_tabla_agregada,
+    )
+    from f1.parsers.xp_diputados_sitl import parse_response as sitl_parse
     from f1.parsers.xp_senado_historico import parse_response as senado_hist_parse
+    from f1.parsers.xp_senado_lxvi import parse_response as senado_parse
 
     register_source(SourceInfo(
         tag="dip_sitl",

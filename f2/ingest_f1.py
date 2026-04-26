@@ -14,8 +14,10 @@ import logging
 import re
 import sqlite3
 import sys
-from datetime import UTC, date, datetime
+from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from pydantic import ValidationError
 
@@ -24,9 +26,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from f1.parsers.xp_utils import _fix_mojibake_name
 from f2.models import (
     AssetRole,
-    Chamber,
     IngestionReport,
     Legislature,
     Method,
@@ -53,6 +55,8 @@ from shared.transform_bridge import (
     parse_date_heuristic,
     validate_counts_vs_nominal,
 )
+
+
 # ---------------------------------------------------------------------------
 # Helpers generales
 # ---------------------------------------------------------------------------

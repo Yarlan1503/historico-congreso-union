@@ -68,8 +68,18 @@ def _build_source_asset(fetch_result: FetchResult, source_tag: str) -> dict[str,
     }
 
 
-def _infer_legislature(source_tag: str) -> str:
-    """Infier la legislatura desde el registry o por heurística del tag."""
+def _infer_legislature(source_tag: str, url: str | None = None) -> str:
+    """Infier la legislatura desde URL, registry o heurística del tag."""
+    # Priority 1: URL pattern (most reliable for multi-legislature sources)
+    if url:
+        import re
+        m = re.search(r'/((?:LX{0,2}(?:IV|V?I{0,3}))_leg)/', url, re.IGNORECASE)
+        if m:
+            leg_candidate = m.group(1).replace('_leg', '').upper()
+            if leg_candidate in ("LXVI", "LXV", "LXIV", "LXIII", "LXII", "LXI", "LX"):
+                return leg_candidate
+
+    # Priority 2: Registry
     from scraper.source_registry import get_source
     try:
         info = get_source(source_tag)
@@ -77,8 +87,7 @@ def _infer_legislature(source_tag: str) -> str:
     except ValueError:
         pass
 
-    # Fallback: buscar patrón de legislatura en el tag
-    import re
+    # Priority 3: Tag pattern fallback
     tag_upper = source_tag.upper()
     for leg in ("LXVI", "LXV", "LXIV", "LXIII", "LXII", "LXI", "LX"):
         if leg in tag_upper:
@@ -103,7 +112,7 @@ def _build_vote_event(
                 break
 
     # Infer legislature from registry
-    legislature = _infer_legislature(source_tag)
+    legislature = _infer_legislature(source_tag, url=fetch_result.url)
 
     return {
         "chamber": infer_chamber(source_tag),

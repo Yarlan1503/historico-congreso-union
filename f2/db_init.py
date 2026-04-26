@@ -13,7 +13,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-
 DEFAULT_DB_RELATIVE = Path("data") / "historico.db"
 
 

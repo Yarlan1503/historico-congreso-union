@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Backfill de vote_counts.total para filas existentes con NULL."""
 import sqlite3
-import sys
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "historico.db"

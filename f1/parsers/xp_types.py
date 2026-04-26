@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Literal, NotRequired, TypedDict
 
-
 XPSentido = Literal[
     "a_favor", "en_contra", "abstencion", "ausente", "novoto", "presente"
 ]

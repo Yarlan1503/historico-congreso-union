@@ -12,6 +12,8 @@ from typing import Any
 
 from f1.parsers.xp_utils import (
     _normalize_sentido as _xp_normalize_sentido,
+)
+from f1.parsers.xp_utils import (
     _validate_counts_vs_nominal as _xp_validate_counts_vs_nominal,
 )
 from f2.models import Chamber

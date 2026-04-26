@@ -13,8 +13,8 @@ from pathlib import Path
 
 import httpx
 
-from scraper._types import FetchResult
 from f1.parsers.xp_utils import _detect_waf
+from scraper._types import FetchResult
 
 logger = logging.getLogger(__name__)
 

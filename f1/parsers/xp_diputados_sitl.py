@@ -25,7 +25,7 @@ from f1.parsers.xp_utils import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +212,9 @@ def _extract_nominal_from_soup(soup: BeautifulSoup, source_tag: str) -> list[XPV
                         pos_partido = idx
 
             if pos_iddip is None or pos_sentido is None:
+                continue
+
+            if pos_iddip >= len(cells) or pos_sentido >= len(cells):
                 continue
 
             iddip = cells[pos_iddip].get_text(strip=True)

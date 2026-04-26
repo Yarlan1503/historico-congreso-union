@@ -10,10 +10,10 @@ from bs4 import BeautifulSoup
 
 try:
     from .xp_types import XPCounts, XPIndeterminate, XPParsedGaceta
-    from .xp_utils import _decode_body, _detect_waf, _SENTIDO_GLOBAL_MAP
+    from .xp_utils import _SENTIDO_GLOBAL_MAP, _decode_body, _detect_waf
 except ImportError:
     from xp_types import XPCounts, XPIndeterminate, XPParsedGaceta
-    from xp_utils import _decode_body, _detect_waf, _SENTIDO_GLOBAL_MAP
+    from xp_utils import _SENTIDO_GLOBAL_MAP, _decode_body, _detect_waf
 
 ParsedGaceta = XPParsedGaceta
 Indeterminate = XPIndeterminate

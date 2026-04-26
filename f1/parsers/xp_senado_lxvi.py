@@ -249,10 +249,32 @@ def _parse_html(
     if h1:
         metadata["titulo"] = h1.get_text(strip=True)
 
-    # Fecha: buscar patrones comunes DD/MM/YYYY o texto largo con mes
-    fecha_match = re.search(r"\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", text)
-    if fecha_match:
-        metadata["fecha"] = fecha_match.group(1)
+    # Fecha: priorizar extracción estructurada desde <strong> en div.text-center,
+    # que contiene la fecha de la votación (ej. "Martes 24 de octubre de 2006").
+    # Los patrones posteriores en la página corresponden a la sidebar "últimas votaciones".
+    _MESES = (
+        "enero|febrero|marzo|abril|mayo|junio|"
+        "julio|agosto|septiembre|octubre|noviembre|diciembre"
+    )
+    _RE_SPANISH_DATE = re.compile(
+        rf"(\d{{1,2}}\s+de\s+(?:{_MESES})\s+de\s+\d{{4}})", re.IGNORECASE
+    )
+    _RE_NUMERIC_DATE = re.compile(r"\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b")
+
+    fecha_strong = soup.find("strong", string=_RE_SPANISH_DATE)
+    if fecha_strong:
+        # Extracción estructurada: fecha dentro de <strong> en div.text-center
+        metadata["fecha"] = fecha_strong.get_text(strip=True)
+    else:
+        # Fallback 1: primer match de fecha en formato español en el texto
+        fecha_match = _RE_SPANISH_DATE.search(text)
+        if fecha_match:
+            metadata["fecha"] = fecha_match.group(1)
+        else:
+            # Fallback 2: fecha numérica DD/MM/YYYY (formato original del parser)
+            fecha_match = _RE_NUMERIC_DATE.search(text)
+            if fecha_match:
+                metadata["fecha"] = fecha_match.group(1)
 
     # Tipo de votación por heurística de palabras clave
     lowered_text = text.lower()
@@ -403,9 +425,9 @@ def parse_response(
             detail=waf["detail"],
         )
 
-    if source_tag == "senado_lxvi_html":
+    if source_tag in ("senado_lxvi_html", "sen_lxvi_html"):
         result = _parse_html(text, source_tag, parser_version)
-    elif source_tag == "senado_lxvi_ajax":
+    elif source_tag in ("senado_lxvi_ajax", "sen_lxvi_ajax"):
         result = _parse_ajax(text, source_tag, parser_version)
     else:
         return Indeterminate(

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import re
+import tomllib
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import tomllib
 from bs4 import BeautifulSoup
 
 from scraper.engine import HTTPScraperEngine
@@ -54,25 +55,92 @@ def _get_periods_for_legislature(legislature: str) -> list[int]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_votacion_ids(body: bytes) -> list[str]:
-    """Extrae IDs de votación (``votaciont``) del HTML del índice por periodo."""
-    ids: set[str] = set()
+_DATE_RE = re.compile(
+    r"(\d{1,2})\s+"
+    r"(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)"
+    r"\s+(\d{4})",
+    re.IGNORECASE,
+)
+
+_MESES: dict[str, int] = {
+    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
+    "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
+    "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
+}
+
+
+def _parse_spanish_date(text: str) -> date | None:
+    """Convierte una fecha en español como ``'3 Septiembre 2024'`` a ``date``."""
+    m = _DATE_RE.search(text)
+    if not m:
+        return None
+    day = int(m.group(1))
+    month = _MESES[m.group(2).lower()]
+    year = int(m.group(3))
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _extract_votacion_ids(body: bytes) -> dict[str, str | None]:
+    """Extrae IDs de votación (``votaciont``) y su fecha asociada del índice por periodo.
+
+    Recorre las filas de las tablas del HTML secuencialmente. Las filas que
+    contienen una fecha en español (``D Mes YYYY``) con ≤3 celdas establecen
+    la fecha vigente. Las filas con links ``votaciont=`` heredan esa fecha.
+
+    Returns:
+        Dict ``{votacion_id: fecha_str | None}`` ordenado por key.
+    """
+    result: dict[str, str | None] = {}
     try:
         text = body.decode("utf-8", errors="replace")
     except Exception:  # pragma: no cover
         text = body.decode("iso-8859-1", errors="replace")
 
     soup = BeautifulSoup(text, "html.parser")
+    current_date: str | None = None
+    processed_anchors: set[int] = set()
+
+    for row in soup.find_all("tr"):
+        cells = row.find_all(["td", "th"])
+        row_text = row.get_text(" ", strip=True)
+
+        # Check if this is a date row (≤3 cells and matches Spanish date)
+        if len(cells) <= 3:
+            m = _DATE_RE.search(row_text)
+            if m:
+                current_date = row_text
+                continue
+
+        # Extract votacion IDs from links in this row
+        for anchor in row.find_all("a", href=True):
+            processed_anchors.add(id(anchor))
+            href = anchor["href"]
+            if "votaciont=" not in href:
+                continue
+            parsed = urlparse(href)
+            params = parse_qs(parsed.query)
+            for val in params.get("votaciont", []):
+                if val and (val not in result or current_date is not None):
+                    result[val] = current_date
+
+    # Fallback: anchors NOT inside any <tr> (bare links in body)
+    # Only add if the ID was not already captured with a date above.
     for anchor in soup.find_all("a", href=True):
+        if id(anchor) in processed_anchors:
+            continue
         href = anchor["href"]
         if "votaciont=" not in href:
             continue
         parsed = urlparse(href)
         params = parse_qs(parsed.query)
         for val in params.get("votaciont", []):
-            if val:
-                ids.add(val)
-    return sorted(ids)
+            if val and val not in result:
+                result[val] = None
+
+    return dict(sorted(result.items()))
 
 
 def _persist_process(
@@ -167,7 +235,7 @@ def scrape_sitl(
         "errores": [],
     }
 
-    all_votacion_ids: list[str] = []
+    all_votacion_dates: dict[str, str | None] = {}
 
     # ------------------------------------------------------------------
     # 1. Descubrimiento por periodo
@@ -199,11 +267,11 @@ def scrape_sitl(
         stats["periodos_scrapeados"].append(periodo)
 
         if max_votaciones is not None:
-            ids = ids[:max_votaciones]
+            ids = dict(list(ids.items())[:max_votaciones])
 
-        all_votacion_ids.extend(ids)
+        all_votacion_dates.update(ids)
 
-    unique_ids = sorted(set(all_votacion_ids))
+    unique_ids = sorted(all_votacion_dates.keys())
     stats["votaciones_descubiertas"] = len(unique_ids)
 
     # ------------------------------------------------------------------
@@ -227,6 +295,13 @@ def scrape_sitl(
             continue
 
         agg_proc = process(agg_fetch, _SOURCE_TAG)
+
+        # Propagar fecha desde el índice al vote_event
+        fecha_str = all_votacion_dates.get(votacion_id)
+        if fecha_str and agg_proc.vote_event:
+            parsed_date = _parse_spanish_date(fecha_str)
+            if parsed_date:
+                agg_proc.vote_event["vote_date"] = parsed_date.isoformat()
 
         if agg_proc.classification == "INDETERMINATE":
             logger.warning(
@@ -280,6 +355,12 @@ def scrape_sitl(
                 continue
 
             nom_proc = process(nom_fetch, _SOURCE_TAG)
+
+            # Propagar fecha desde el índice al vote_event nominal
+            if fecha_str and nom_proc.vote_event:
+                parsed_date_nom = _parse_spanish_date(fecha_str)
+                if parsed_date_nom:
+                    nom_proc.vote_event["vote_date"] = parsed_date_nom.isoformat()
 
             if nom_proc.classification == "INDETERMINATE":
                 logger.warning(

@@ -31,3 +31,6 @@ data/logs/*
 
 # Notebooks
 notebooks/__marimo__/
+
+# Snapshots
+snapshots/
